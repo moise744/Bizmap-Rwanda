@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
 import os
 import sys
 
-
-def main():
-    """Run administrative tasks."""
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+if __name__ == '__main__':
+    # Auto-detect Railway environment
+    if 'RAILWAY_ENVIRONMENT' in os.environ:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.railway')
+    else:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.development')
+    
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
@@ -16,7 +18,3 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
     execute_from_command_line(sys.argv)
-
-
-if __name__ == "__main__":
-    main()
