@@ -97,8 +97,13 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Database
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='postgresql://postgres:simplepass@localhost:5432/busimap_rwanda')
+    'default': env.db(
+        'DATABASE_URL',
+        default='postgresql://postgres:simplepass@localhost:5432/busimap_rwanda'
+    )
 }
+
+
 
 # Cache
 CACHES = {
