@@ -344,8 +344,9 @@ BUSIMAP_SETTINGS = {
 
 # Mobile Money Configuration
 MOBILE_MONEY_SETTINGS = {
+    
     'MTN_MOMO': {
-        'API_KEY': env('MTN_MOMO_API_KEY', default=''),
+        'API_KEY': env('MTN_MOMO_COLLECTIONS_KEY', default=''),
         'API_SECRET': env('MTN_MOMO_API_SECRET', default=''),
         'CALLBACK_URL': env('MTN_MOMO_CALLBACK_URL', default=''),
     },
