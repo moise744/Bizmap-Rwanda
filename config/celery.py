@@ -33,6 +33,13 @@ app.conf.beat_schedule = {
 
 app.conf.timezone = 'Africa/Kigali'
 
+# Add these new configurations for better error handling
+app.conf.task_soft_time_limit = 300  # 5 minutes
+app.conf.task_time_limit = 360       # 6 minutes
+app.conf.worker_prefetch_multiplier = 1
+app.conf.task_acks_late = True
+app.conf.worker_disable_rate_limits = False
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

@@ -123,37 +123,48 @@ class UserRegistrationView(generics.CreateAPIView):
             logger.error(f"Error in phone verification process for {user.phone_number}: {e}")
             return None
 
+    
     def send_email_verification(self, user):
-        """Send email verification token"""
+        """Send email verification token via background task"""
         try:
             verification = EmailVerification.generate_token(user, user.email)
             
-            # Create verification URL
-            verification_url = f"{settings.FRONTEND_URL}/verify-email/{verification.verification_token}"
+            # Import the task here to avoid circular imports
+            from .tasks import send_verification_email
             
-            # Send email
-            subject = 'Verify your BusiMap account'
-            html_message = render_to_string('emails/email_verification.html', {
-                'user': user,
-                'verification_url': verification_url,
-                'expires_hours': 24
-            })
+            # Send via background task with a fallback
+            try:
+                send_verification_email.delay(
+                    str(user.id), 
+                    user.email, 
+                    verification.verification_token,
+                    user.first_name
+                )
+                logger.info(f"Email verification task queued for {user.email}")
+            except Exception as task_error:
+                logger.error(f"Failed to queue email task for {user.email}: {task_error}")
+                # Fallback: try to send immediately but don't block registration
+                try:
+                    verification_url = f"{settings.FRONTEND_URL}/verify-email/{verification.verification_token}"
+                    send_mail(
+                        subject='Verify your BusiMap account',
+                        message=f'Please verify your email: {verification_url}',
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[user.email],
+                        fail_silently=True  # Don't break registration
+                    )
+                except:
+                    pass  # Even fallback fails, but registration continues
             
-            send_mail(
-                subject=subject,
-                message=f'Please verify your email by visiting: {verification_url}',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False
-            )
-            
-            logger.info(f"Email verification sent to {user.email}")
             return verification
-                
+            
         except Exception as e:
             logger.error(f"Error in email verification process for {user.email}: {e}")
-            return None
+            # Still create verification record so user can request resend
+            try:
+                return EmailVerification.generate_token(user, user.email)
+            except:
+                return None
 
 @method_decorator(csrf_exempt, name='dispatch')
 @extend_schema_view(
@@ -619,6 +630,7 @@ class ResendEmailVerificationView(generics.GenericAPIView):
 class PasswordResetView(generics.GenericAPIView):
     serializer_class = PasswordResetSerializer
     permission_classes = [permissions.AllowAny]
+    
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -638,30 +650,34 @@ class PasswordResetView(generics.GenericAPIView):
             expires_in_hours=24
         )
 
-        reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset.reset_token}"
-
-        # Send email
-        subject = "Reset your BusiMap password"
-        html_message = render_to_string('emails/password_reset.html', {
-            'user': user,
-            'reset_url': reset_url,
-            'expires_hours': 24
-        })
-
+        # Import the task here to avoid circular imports
+        from .tasks import send_password_reset_email
+        
         try:
-            send_mail(
-                subject=subject,
-                message=f"Reset your password: {reset_url}",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                html_message=html_message,
-                fail_silently=False
+            # Send via background task
+            send_password_reset_email.delay(
+                str(user.id),
+                user.email,
+                reset.reset_token,
+                user.first_name
             )
-            logger.info(f"Password reset email sent to {user.email}")
-            return Response({'message': 'Password reset email sent successfully'})
+            logger.info(f"Password reset email task queued for {user.email}")
         except Exception as e:
-            logger.error(f"Failed to send password reset email to {user.email}: {e}")
-            return Response({'error': 'Failed to send password reset email'}, status=500)
+            logger.error(f"Failed to queue password reset email for {user.email}: {e}")
+            # Fallback to immediate sending
+            try:
+                reset_url = f"{settings.FRONTEND_URL}/reset-password/{reset.reset_token}"
+                send_mail(
+                    subject="Reset your BusiMap password",
+                    message=f"Reset your password: {reset_url}",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=True
+                )
+            except:
+                pass  # Even fallback fails, but we don't reveal this to user
+
+        return Response({'message': 'Password reset email sent successfully'})
 
 @method_decorator(csrf_exempt, name='dispatch')
 @extend_schema_view(
