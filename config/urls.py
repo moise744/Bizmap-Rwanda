@@ -10,8 +10,10 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from apps.common.views import health_check
+from django.views.generic import RedirectView
 
 urlpatterns = [
+     path('', RedirectView.as_view(url='/api/docs/', permanent=False), name='root'),
     path('admin/', admin.site.urls),
     
     # Health Check
